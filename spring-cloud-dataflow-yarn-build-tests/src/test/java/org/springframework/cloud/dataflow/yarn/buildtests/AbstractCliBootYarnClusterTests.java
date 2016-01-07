@@ -223,10 +223,45 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 			
 			Thread.sleep(1000);
 		} while (System.currentTimeMillis() < end);
-		
-		
+
+		if (search.contains("HdfsSinkApplication") || search.contains("stopped outbound.timehdfs")) {
+			System.err.println("*********************************************************************");
+			System.err.println("file: " + file);
+			String content = getWaitFileContent(applicationId);
+			if (content.contains(search)) {
+				System.err.println("CONTAINS: " + search);
+			}
+			else {
+				System.err.println("NOT FOUND: " + search);
+			}
+			System.err.println("*********************************************************************");
+			System.err.println("**vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv**");
+			System.err.println(content);
+			System.err.println("**^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^**");
+			System.err.println("*********************************************************************");
+		}
+
+		System.out.println("*** LOCATED " + search + " IN: " + file);
+		System.err.println("*** LOCATED " + search + " IN: " + file);
 		assertThat(file, notNullValue());
 		return file;
+	}
+
+	protected String getWaitFileContent(ApplicationId applicationId) throws Exception {
+		StringBuilder results = new StringBuilder();
+
+			List<Resource> resources = ContainerLogUtils.queryContainerLogs(
+					getYarnCluster(), applicationId);
+			for (Resource res : resources) {
+				File f = res.getFile();
+				String content = ContainerLogUtils.getFileContent(f);
+				results.append("*** FILE: " + f.getName());
+				results.append(content);
+				results.append('\n');
+			}
+
+
+		return results.toString();
 	}
 
 	protected String dumpFs() throws IOException {
