@@ -22,6 +22,8 @@ import static org.junit.Assert.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -69,12 +71,12 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 	private YarnCluster yarnCluster;
 	private YarnClient yarnClient;
 	private String projectVersion;
-	
+
 	@Before
 	public void setup() {
 		projectVersion = getEnvironment().getProperty("projectVersion");
 	}
-	
+
 	@Override
 	public final void setApplicationContext(ApplicationContext applicationContext) {
 		this.applicationContext = applicationContext;
@@ -84,12 +86,12 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 	public void setConfiguration(Configuration configuration) {
 		this.configuration = configuration;
 	}
-	
+
 	@Autowired
 	public void setYarnCluster(YarnCluster yarnCluster) {
 		this.yarnCluster = yarnCluster;
 	}
-	
+
 	@Override
 	public void setEnvironment(Environment environment) {
 		this.environment = environment;
@@ -98,7 +100,7 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 	public ApplicationContext getApplicationContext() {
 		return applicationContext;
 	}
-	
+
 	public Environment getEnvironment() {
 		return environment;
 	}
@@ -110,15 +112,15 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 	public void setYarnClient(YarnClient yarnClient) {
 		this.yarnClient = yarnClient;
 	}
-	
+
 	public YarnClient getYarnClient() {
 		return yarnClient;
 	}
-	
+
 	public YarnCluster getYarnCluster() {
 		return yarnCluster;
 	}
-	
+
 	public String getProjectVersion() {
 		return projectVersion;
 	}
@@ -130,7 +132,7 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 	protected ApplicationInfo submitApplicationAndWait(Object source, String[] args, long timeout, final TimeUnit unit) throws Exception {
 		return submitApplicationAndWaitState(source, args, timeout, unit, YarnApplicationState.FINISHED, YarnApplicationState.FAILED);
 	}
-	
+
 	protected ApplicationInfo submitApplicationAndWaitState(long timeout, TimeUnit unit, YarnApplicationState... applicationStates) throws Exception {
 		Assert.notEmpty(applicationStates, "Need to have atleast one state");
 		Assert.notNull(getYarnClient(), "Yarn client must be set");
@@ -160,7 +162,7 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 		} while (System.currentTimeMillis() < end);
 		return new ApplicationInfo(applicationId, report);
 	}
-	
+
 	protected ApplicationInfo waitState(ApplicationId applicationId, long timeout, TimeUnit unit, YarnApplicationState... applicationStates) throws Exception {
 		YarnApplicationState state = null;
 		ApplicationReport report = null;
@@ -181,12 +183,12 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 			}
 			Thread.sleep(1000);
 		} while (System.currentTimeMillis() < end);
-		return new ApplicationInfo(applicationId, report);		
+		return new ApplicationInfo(applicationId, report);
 	}
-	
-	
+
+
 	protected ApplicationInfo submitApplicationAndWaitState(Object source, String[] args, final long timeout,
-			final TimeUnit unit, final YarnApplicationState... applicationStates) throws Exception {
+															final TimeUnit unit, final YarnApplicationState... applicationStates) throws Exception {
 
 		SpringApplicationBuilder builder = new SpringApplicationBuilder(source);
 		builder.initializers(new HadoopConfigurationInjectingInitializer(getConfiguration()));
@@ -204,6 +206,8 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 	}
 
 	protected File assertWaitFileContent(long timeout, TimeUnit unit, ApplicationId applicationId, String search) throws Exception {
+		System.err.println(">>> SEARCH " + search);
+		System.err.println("  > ENTER AT: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date()));
 		File file = null;
 
 		long end = System.currentTimeMillis() + unit.toMillis(timeout);
@@ -217,16 +221,18 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 				String content = ContainerLogUtils.getFileContent(f);
 				if (content.contains(search)) {
 					file = f;
+					System.err.println("  > FOUND AT: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date()));
 					break done;
 				}
 			}
-			
+
 			Thread.sleep(1000);
 		} while (System.currentTimeMillis() < end);
 
-		if (search.contains("HdfsSinkApplication") || search.contains("stopped outbound.timehdfs")) {
+		System.err.println("  >  EXIT AT: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date()));
+
+		if (file == null) {
 			System.err.println("*********************************************************************");
-			System.err.println("file: " + file);
 			String content = getWaitFileContent(applicationId);
 			if (content.contains(search)) {
 				System.err.println("CONTAINS: " + search);
@@ -241,8 +247,6 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 			System.err.println("*********************************************************************");
 		}
 
-		System.out.println("*** LOCATED " + search + " IN: " + file);
-		System.err.println("*** LOCATED " + search + " IN: " + file);
 		assertThat(file, notNullValue());
 		return file;
 	}
@@ -250,15 +254,15 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 	protected String getWaitFileContent(ApplicationId applicationId) throws Exception {
 		StringBuilder results = new StringBuilder();
 
-			List<Resource> resources = ContainerLogUtils.queryContainerLogs(
-					getYarnCluster(), applicationId);
-			for (Resource res : resources) {
-				File f = res.getFile();
-				String content = ContainerLogUtils.getFileContent(f);
-				results.append("*** FILE: " + f.getName());
-				results.append(content);
-				results.append('\n');
-			}
+		List<Resource> resources = ContainerLogUtils.queryContainerLogs(
+				getYarnCluster(), applicationId);
+		for (Resource res : resources) {
+			File f = res.getFile();
+			String content = ContainerLogUtils.getFileContent(f);
+			results.append("*** FILE: " + f.getName());
+			results.append(content);
+			results.append('\n');
+		}
 
 
 		return results.toString();
@@ -274,7 +278,7 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 		}
 		return buf.toString();
 	}
-	
+
 	protected void waitHdfsFile(String path, long timeout, TimeUnit unit) throws Exception {
 		Path p = new Path(path);
 		FileSystem fs = FileSystem.get(getConfiguration());
@@ -287,9 +291,9 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 			}
 			Thread.sleep(1000);
 		} while (System.currentTimeMillis() < end);
-		assertThat(found, is(true));		
+		assertThat(found, is(true));
 	}
-		
+
 	private ApplicationReport findApplicationReport(YarnClient client, ApplicationId applicationId) {
 		Assert.notNull(getYarnClient(), "Yarn client must be set");
 		for (ApplicationReport report : client.listApplications()) {
@@ -299,14 +303,14 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 		}
 		return null;
 	}
-	
+
 	protected ApplicationId submitApplication() {
 		Assert.notNull(getYarnClient(), "Yarn client must be set");
 		ApplicationId applicationId = getYarnClient().submitApplication();
 		Assert.notNull(applicationId, "Failed to get application id from submit");
 		return applicationId;
 	}
-	
+
 	public static class HadoopConfigurationInjectingInitializer
 			implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 
@@ -322,5 +326,5 @@ public class AbstractCliBootYarnClusterTests implements ApplicationContextAware,
 		}
 
 	}
-	
+
 }
